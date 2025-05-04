@@ -21,13 +21,13 @@ data:
     scrape_configs:
       # Job for scraping Kubernetes API server metrics
       - job_name: 'kubernetes-apiservers' 
-        kubernetes_sd_configs: # Tells Prometheus to use the Kubernetes API to automatically discover targets, Define What to monitor
-        - role: endpoints
-        scheme: https
+        kubernetes_sd_configs: # Way to modify, filter, or create labels on Prometheus targets after discovery but before scraping
+        - role: endpoints # This role helps to discover targets from Kubernetes Services and Endpoints
+        scheme: https # Needed to authenticate Prometheus to Kubernetes using in-cluster credentials
         tls_config:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-        relabel_configs: # Modify the labels of discovered targets
+        relabel_configs: # Only keep targets where, namespace = default, service name = kubernetes, port name = https, So this job will only scrape the Kubernetes API server endpoint
         - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
           action: keep
           regex: default;kubernetes;https
@@ -39,11 +39,11 @@ data:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
         kubernetes_sd_configs:
-          - role: node
+          - role: node # This role helps to discover targets from Kubernetes Nodes
         relabel_configs:
-          - target_label: __address__
+          - target_label: __address__ # Replace scrape address for all discovered nodes with Kubernetes API server address
             replacement: kubernetes.default.svc:443
-          - source_labels: [__meta_kubernetes_node_name]
+          - source_labels: [__meta_kubernetes_node_name] # Dynamically set the path to "/api/v1/nodes/<node-name>/proxy/metrics", This is how Prometheus scrapes node metrics through the API server proxy.
             regex: (.+)
             target_label: __metrics_path__
             replacement: /api/v1/nodes/${1}/proxy/metrics
@@ -55,23 +55,23 @@ data:
       # Job for scraping Pod metrics
       - job_name: 'kubernetes-pods'
         kubernetes_sd_configs:
-          - role: pod
+          - role: pod # Discover all pods in the cluster
         relabel_configs:
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape] # Only keep pods with the annotation prometheus.io/scrape=true
             action: keep
             regex: true
-          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path] # Replace the metrics path with the one specified in the pod annotation prometheus.io/path
             action: replace
             target_label: __metrics_path__
             regex: (.+)
-          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port] # Replace the address with the one specified in the pod annotation prometheus.io/port
             action: replace
             regex: ([^:]+)(?::\d+)?;(\d+)
             replacement: $1:$2
             target_label: __address__
-          - action: labelmap
+          - action: labelmap # Map all Kubernetes pod labels to Prometheus labels
             regex: __meta_kubernetes_pod_label_(.+)
-          - source_labels: [__meta_kubernetes_namespace]
+          - source_labels: [__meta_kubernetes_namespace] # Add human-readable labels for namespace and pod name
             action: replace
             target_label: kubernetes_namespace
           - source_labels: [__meta_kubernetes_pod_name]
