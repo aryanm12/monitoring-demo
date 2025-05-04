@@ -21,13 +21,14 @@ data:
     scrape_configs:
       # Job for scraping Kubernetes API server metrics
       - job_name: 'kubernetes-apiservers' 
-        kubernetes_sd_configs: # Way to modify, filter, or create labels on Prometheus targets after discovery but before scraping
+        kubernetes_sd_configs:
         - role: endpoints # This role helps to discover targets from Kubernetes Services and Endpoints
         scheme: https # Needed to authenticate Prometheus to Kubernetes using in-cluster credentials
         tls_config:
           ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-        relabel_configs: # Only keep targets where, namespace = default, service name = kubernetes, port name = https, So this job will only scrape the Kubernetes API server endpoint
+        relabel_configs: # Way to modify, filter, or create labels on Prometheus targets after discovery but before scraping
+        # Only keep targets where, namespace = default, service name = kubernetes, port name = https, So this job will only scrape the Kubernetes API server endpoint
         - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
           action: keep
           regex: default;kubernetes;https
